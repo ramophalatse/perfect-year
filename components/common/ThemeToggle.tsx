@@ -4,7 +4,7 @@ import { useTheme } from '@/app/providers/ThemeProvider';
 import { useState, useEffect } from 'react';
 
 export default function ThemeToggle() {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
   // Avoid hydration mismatch by only rendering after component mounts
@@ -13,6 +13,11 @@ export default function ThemeToggle() {
   }, []);
 
   if (!mounted) return null;
+
+  // Toggle between light and dark
+  const toggleTheme = () => {
+    setTheme(theme === 'dark' ? 'light' : 'dark');
+  };
 
   return (
     <button
