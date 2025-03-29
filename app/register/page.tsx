@@ -16,25 +16,30 @@ function RegisterContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('Form submitted with:', { name, email, password: '***', confirmPassword: '***' });
     
     if (!name || !email || !password) {
       setError('Please fill in all required fields');
+      console.log('Validation failed: missing required fields');
       return;
     }
     
     if (password !== confirmPassword) {
       setError('Passwords do not match');
+      console.log('Validation failed: passwords do not match');
       return;
     }
     
     if (password.length < 8) {
       setError('Password must be at least 8 characters long');
+      console.log('Validation failed: password too short');
       return;
     }
     
     try {
       setIsLoading(true);
       setError('');
+      console.log('Sending registration request to server...');
       
       const response = await fetch('/api/auth/register', {
         method: 'POST',
@@ -48,17 +53,21 @@ function RegisterContent() {
         }),
       });
       
+      console.log('Server response status:', response.status);
       const data = await response.json();
+      console.log('Server response data:', data);
       
       if (!response.ok) {
         setError(data.error || 'Registration failed');
+        console.error('Registration failed:', data.error || 'Unknown error');
       } else {
+        console.log('Registration successful, redirecting to login page');
         // Registration successful, redirect to login
         router.push('/login?registered=true');
       }
     } catch (error) {
+      console.error('Registration error caught:', error);
       setError('An error occurred during registration');
-      console.error('Registration error:', error);
     } finally {
       setIsLoading(false);
     }
