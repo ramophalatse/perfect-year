@@ -27,7 +27,7 @@ A web application built with Next.js to help you plan and track your perfect yea
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/perfect-year.git
+   git clone https://github.com/ramophalatse/perfect-year.git
    cd perfect-year
    ```
 
