@@ -10,7 +10,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -33,6 +33,8 @@ model User {
   events        Event[]
   resources     Resource[]
   teamMembers   TeamMember[]
+  categories    Category[]
+  futureVisions FutureVision[]
 }
 
 enum Role {
@@ -41,11 +43,54 @@ enum Role {
   TEAM_MEMBER
 }
 
+// Life Categories
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  isPreset    Boolean  @default(false)
+  priority    Int      @default(0) // Higher number = higher priority
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  futureVisions FutureVision[]
+  goals         Goal[]
+  
+  @@index([userId])
+  @@unique([userId, name]) // Each user can only have unique category names
+}
+
+// Future Vision
+model FutureVision {
+  id            String   @id @default(cuid())
+  description   String
+  year          Int
+  yearEndReflection String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId    String
+  category      Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([categoryId])
+  @@unique([userId, categoryId, year]) // One vision per category per year per user
+}
+
 // Goals
 model Goal {
   id          String    @id @default(cuid())
   title       String
   description String?
+  criteria    Json?     // SMART criteria as JSON
+  targetValue Float?    // Numerical target if applicable
+  currentValue Float?   // Current progress if applicable
+  timeframe   TimeFrame @default(ANNUAL)
   startDate   DateTime
   endDate     DateTime?
   status      Status    @default(IN_PROGRESS)
@@ -55,10 +100,20 @@ model Goal {
   
   userId      String
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  
+  // Parent-child relationship
+  parentId    String?
+  parent      Goal?     @relation("GoalHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  subgoals    Goal[]    @relation("GoalHierarchy")
+  
   tasks       Task[]
   projects    Project[]
   
   @@index([userId])
+  @@index([categoryId])
+  @@index([parentId])
 }
 
 // Tasks
@@ -191,4 +246,12 @@ enum Priority {
   MEDIUM
   HIGH
   URGENT
+}
+
+enum TimeFrame {
+  ANNUAL
+  QUARTERLY
+  MONTHLY
+  WEEKLY
+  DAILY
 }
