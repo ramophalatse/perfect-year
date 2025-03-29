@@ -1,7 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import Navigation from '../components/Navigation';
+import Link from 'next/link';
 
 interface Goal {
   id: number;
@@ -18,37 +21,84 @@ interface Task {
 }
 
 export default function Dashboard() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
 
   useEffect(() => {
-    // Simulate loading data
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-      // Mock data
-      setGoals([
-        { id: 1, title: 'Learn Next.js', progress: 60, category: 'Education' },
-        { id: 2, title: 'Exercise 3x per week', progress: 40, category: 'Health' },
-        { id: 3, title: 'Read 12 books this year', progress: 25, category: 'Personal' },
-      ]);
-      setTasks([
-        { id: 1, title: 'Complete Next.js tutorial', done: false, dueDate: '2023-07-15' },
-        { id: 2, title: 'Go for a 30 min run', done: true, dueDate: '2023-07-10' },
-        { id: 3, title: 'Read chapter 5', done: false, dueDate: '2023-07-12' },
-        { id: 4, title: 'Plan next week goals', done: false, dueDate: '2023-07-16' },
-      ]);
-    }, 1000);
+    // Redirect if not authenticated
+    if (status === 'unauthenticated') {
+      router.push('/login');
+      return;
+    }
 
-    return () => clearTimeout(timer);
-  }, []);
+    if (status === 'authenticated') {
+      // Load user data
+      fetchUserData();
+    }
+  }, [status, router]);
+
+  const fetchUserData = async () => {
+    try {
+      // In a real app, you would fetch this data from your API
+      // Example: const response = await fetch('/api/goals');
+      
+      // For now, simulate loading data
+      setTimeout(() => {
+        setIsLoading(false);
+        // Mock data
+        setGoals([
+          { id: 1, title: 'Learn Next.js', progress: 60, category: 'Education' },
+          { id: 2, title: 'Exercise 3x per week', progress: 40, category: 'Health' },
+          { id: 3, title: 'Read 12 books this year', progress: 25, category: 'Personal' },
+        ]);
+        setTasks([
+          { id: 1, title: 'Complete Next.js tutorial', done: false, dueDate: '2023-07-15' },
+          { id: 2, title: 'Go for a 30 min run', done: true, dueDate: '2023-07-10' },
+          { id: 3, title: 'Read chapter 5', done: false, dueDate: '2023-07-12' },
+          { id: 4, title: 'Plan next week goals', done: false, dueDate: '2023-07-16' },
+        ]);
+      }, 1000);
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      setIsLoading(false);
+    }
+  };
+
+  // Show loading state while checking authentication
+  if (status === 'loading') {
+    return (
+      <>
+        <Navigation />
+        <main className="bg-gray-50 dark:bg-gray-800 min-h-screen">
+          <div className="container mx-auto px-4 py-8">
+            <div className="flex justify-center items-center h-64">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+            </div>
+          </div>
+        </main>
+      </>
+    );
+  }
+
+  // If unauthenticated, we'll redirect (handled in useEffect)
+  if (status === 'unauthenticated') {
+    return null;
+  }
 
   return (
     <>
       <Navigation />
       <main className="bg-gray-50 dark:bg-gray-800 min-h-screen">
         <div className="container mx-auto px-4 py-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-6">Dashboard</h1>
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              Welcome, {session?.user?.name || 'User'}!
+            </div>
+          </div>
           
           {isLoading ? (
             <div className="flex justify-center items-center h-64">
@@ -81,51 +131,71 @@ export default function Dashboard() {
                 </div>
 
                 <h3 className="text-lg font-medium text-gray-800 dark:text-gray-200 mt-6 mb-3">Goal Progress</h3>
-                <div className="space-y-4">
-                  {goals.map((goal) => (
-                    <div key={goal.id} className="relative">
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{goal.title}</span>
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{goal.progress}%</span>
+                
+                {goals.length > 0 ? (
+                  <div className="space-y-4">
+                    {goals.map((goal) => (
+                      <div key={goal.id} className="relative">
+                        <div className="flex justify-between mb-1">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{goal.title}</span>
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{goal.progress}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+                          <div 
+                            className="bg-blue-600 h-2.5 rounded-full dark:bg-blue-500" 
+                            style={{ width: `${goal.progress}%` }}
+                          ></div>
+                        </div>
+                        <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 inline-block">{goal.category}</span>
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-                        <div 
-                          className="bg-blue-600 h-2.5 rounded-full dark:bg-blue-500" 
-                          style={{ width: `${goal.progress}%` }}
-                        ></div>
-                      </div>
-                      <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 inline-block">{goal.category}</span>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-gray-500 dark:text-gray-400 mb-3">You haven't created any goals yet.</p>
+                    <Link href="/plan" className="text-blue-600 dark:text-blue-400 hover:underline">
+                      Start planning your perfect year
+                    </Link>
+                  </div>
+                )}
               </div>
 
               {/* Upcoming Tasks */}
               <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-6">
                 <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-4">Upcoming Tasks</h2>
-                <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {tasks.map((task) => (
-                    <div key={task.id} className="py-3 flex items-start">
-                      <input 
-                        type="checkbox"
-                        checked={task.done}
-                        readOnly
-                        className="h-4 w-4 mt-1 text-blue-600 focus:ring-blue-500 border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600"
-                      />
-                      <div className="ml-3 flex-1">
-                        <p className={`text-sm ${task.done ? 'line-through text-gray-500 dark:text-gray-400' : 'text-gray-700 dark:text-gray-300'}`}>
-                          {task.title}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                          Due: {new Date(task.dueDate).toLocaleDateString()}
-                        </p>
+                
+                {tasks.length > 0 ? (
+                  <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {tasks.map((task) => (
+                      <div key={task.id} className="py-3 flex items-start">
+                        <input 
+                          type="checkbox"
+                          checked={task.done}
+                          readOnly
+                          className="h-4 w-4 mt-1 text-blue-600 focus:ring-blue-500 border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600"
+                        />
+                        <div className="ml-3 flex-1">
+                          <p className={`text-sm ${task.done ? 'line-through text-gray-500 dark:text-gray-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                            {task.title}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                            Due: {new Date(task.dueDate).toLocaleDateString()}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-                <button className="mt-4 w-full flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50">
-                  View All Tasks
-                </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-gray-500 dark:text-gray-400">No upcoming tasks.</p>
+                  </div>
+                )}
+                
+                <Link href="/tasks">
+                  <button className="mt-4 w-full flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50">
+                    View All Tasks
+                  </button>
+                </Link>
               </div>
             </div>
           )}
