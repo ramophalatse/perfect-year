@@ -18,6 +18,14 @@ export async function POST(request: NextRequest) {
       );
     }
     
+    // Check if password exists (it could be null in our schema)
+    if (!user.password) {
+      return NextResponse.json(
+        { error: 'Account setup incomplete' },
+        { status: 401 }
+      );
+    }
+    
     // Verify password
     const passwordMatch = await compare(password, user.password);
     
