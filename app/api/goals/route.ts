@@ -1,54 +1,73 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
 import prisma from '@/lib/prisma';
+import { authOptions } from '@/lib/auth';
 
 // GET /api/goals - Get all goals for the current user
 export async function GET(request: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    
+    if (!session || !session.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const userId = session.user.id;
     const { searchParams } = new URL(request.url);
+    
+    // Parse filter parameters
     const categoryId = searchParams.get('categoryId');
-    const parentId = searchParams.get('parentId');
     const timeframe = searchParams.get('timeframe');
+    const status = searchParams.get('status');
+    const priority = searchParams.get('priority');
     
-    // In a real app, you would get the user ID from the session
-    const userId = 'placeholder-user-id'; // Replace with actual auth
+    // Build query based on filters
+    const query: any = {
+      userId: userId,
+    };
     
-    // Build filter conditions
-    const whereClause: any = { userId };
-    if (categoryId) whereClause.categoryId = categoryId;
-    
-    // Handle parent-child relationship filtering
-    if (parentId === 'null') {
-      whereClause.parentId = null; // Top-level goals only
-    } else if (parentId) {
-      whereClause.parentId = parentId; // Specific parent's children
+    if (categoryId) {
+      query.categoryId = categoryId;
     }
     
     if (timeframe) {
-      whereClause.timeframe = timeframe;
+      query.timeframe = timeframe;
     }
     
+    if (status) {
+      query.status = status;
+    }
+    
+    if (priority) {
+      query.priority = priority;
+    }
+    
+    // Only fetch top-level goals (no parent)
     const goals = await prisma.goal.findMany({
-      where: whereClause,
+      where: {
+        ...query,
+        parentId: null,
+      },
       include: {
-        category: true,
-        parent: {
+        category: {
           select: {
             id: true,
-            title: true,
+            name: true,
           },
         },
         subgoals: {
-          select: {
-            id: true,
-            title: true,
-            timeframe: true,
-            status: true,
+          include: {
+            subgoals: true,
           },
         },
       },
       orderBy: [
-        { priority: 'desc' },
-        { startDate: 'asc' },
+        {
+          priority: 'asc', // HIGH first
+        },
+        {
+          startDate: 'asc',
+        },
       ],
     });
     
@@ -65,63 +84,54 @@ export async function GET(request: Request) {
 // POST /api/goals - Create a new goal
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { 
-      title, 
-      description, 
-      startDate, 
-      endDate,
-      timeframe = 'ANNUAL',
-      criteria,
-      targetValue,
-      currentValue = 0,
-      categoryId,
-      parentId,
-      priority = 'MEDIUM',
-      status = 'IN_PROGRESS'
-    } = body;
+    const session = await getServerSession(authOptions);
     
-    // Validation
-    if (!title) {
+    if (!session || !session.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const userId = session.user.id;
+    const data = await request.json();
+    
+    // Validate required fields
+    if (!data.title || !data.timeframe || !data.startDate) {
       return NextResponse.json(
-        { error: 'Goal title is required' },
+        { error: 'Missing required fields' },
         { status: 400 }
       );
     }
     
-    if (!startDate) {
+    // Validate dates
+    const startDate = new Date(data.startDate);
+    const endDate = data.endDate ? new Date(data.endDate) : null;
+    
+    if (isNaN(startDate.getTime())) {
       return NextResponse.json(
-        { error: 'Start date is required' },
+        { error: 'Invalid start date' },
         { status: 400 }
       );
     }
     
-    // In a real app, you would get the user ID from the session
-    const userId = 'placeholder-user-id'; // Replace with actual auth
-    
-    // If parentId is provided, verify parent goal exists and belongs to user
-    if (parentId) {
-      const parentGoal = await prisma.goal.findUnique({
-        where: {
-          id: parentId,
-          userId,
-        },
-      });
-      
-      if (!parentGoal) {
-        return NextResponse.json(
-          { error: 'Parent goal not found' },
-          { status: 404 }
-        );
-      }
+    if (endDate && isNaN(endDate.getTime())) {
+      return NextResponse.json(
+        { error: 'Invalid end date' },
+        { status: 400 }
+      );
     }
     
-    // If categoryId is provided, verify category exists and belongs to user
-    if (categoryId) {
+    if (endDate && endDate < startDate) {
+      return NextResponse.json(
+        { error: 'End date must be after start date' },
+        { status: 400 }
+      );
+    }
+    
+    // Validate category exists and belongs to user if categoryId is provided
+    if (data.categoryId) {
       const category = await prisma.category.findUnique({
         where: {
-          id: categoryId,
-          userId,
+          id: data.categoryId,
+          userId: userId,
         },
       });
       
@@ -133,26 +143,47 @@ export async function POST(request: Request) {
       }
     }
     
-    // Create new goal
+    // Validate parent goal exists and belongs to user if parentId is provided
+    if (data.parentId) {
+      const parentGoal = await prisma.goal.findUnique({
+        where: {
+          id: data.parentId,
+          userId: userId,
+        },
+      });
+      
+      if (!parentGoal) {
+        return NextResponse.json(
+          { error: 'Parent goal not found' },
+          { status: 404 }
+        );
+      }
+      
+      // If parent goal has a category, use that category
+      if (parentGoal.categoryId) {
+        data.categoryId = parentGoal.categoryId;
+      }
+    }
+    
+    // Create the goal
     const goal = await prisma.goal.create({
       data: {
-        title,
-        description,
-        startDate: new Date(startDate),
-        endDate: endDate ? new Date(endDate) : undefined,
-        timeframe,
-        criteria,
-        targetValue,
-        currentValue,
-        priority,
-        status,
-        userId,
-        categoryId,
-        parentId,
+        title: data.title,
+        description: data.description,
+        timeframe: data.timeframe,
+        startDate: startDate,
+        endDate: endDate,
+        status: data.status || 'TODO',
+        priority: data.priority || 'MEDIUM',
+        targetValue: data.targetValue || null,
+        currentValue: data.currentValue || null,
+        userId: userId,
+        categoryId: data.categoryId || null,
+        parentId: data.parentId || null,
       },
     });
     
-    return NextResponse.json(goal, { status: 201 });
+    return NextResponse.json(goal);
   } catch (error) {
     console.error('Error creating goal:', error);
     return NextResponse.json(
