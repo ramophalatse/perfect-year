@@ -5,4 +5,4 @@ export async function GET() {
     message: 'Hello from Perfect Year API!',
     timestamp: new Date().toISOString()
   });
-} y
+}
